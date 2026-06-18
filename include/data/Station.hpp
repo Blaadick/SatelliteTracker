@@ -6,10 +6,16 @@
 
 class Station {
 public:
-     Station(
+    Station(
         const std::string& id,
         const std::map<std::string, std::vector<TimeRange>>& satellites
     );
+
+    [[nodiscard]]
+    const std::string& getId() const;
+
+    [[nodiscard]]
+    const std::map<std::string, std::vector<TimeRange>>& getSatellites() const;
 
     [[nodiscard]]
     nlohmann::json toJson() const;

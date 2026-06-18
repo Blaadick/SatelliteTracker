@@ -1,3 +1,6 @@
+#include <iostream>
+#include <print>
+#include "StationCalculator.hpp"
 #include "data/Satellite.hpp"
 #include "data/Station.hpp"
 #include "serialization/JsonLoader.hpp"
@@ -9,4 +12,15 @@ int main() {
     JsonLoader loader(satellites, stations);
     loader.loadSatellites();
     loader.loadStations();
+
+    StationCalculator calculator(satellites, stations);
+
+    for(const auto& station : stations) {
+        const auto stationSteps = calculator.calculateStationSequence(station);
+
+        std::cout << "\n" + station.getId() + ":\n";
+        for(const auto& [satelliteId, timeRange] : stationSteps) {
+            std::println("    {}: {}", satelliteId, timeRange.toString());
+        }
+    }
 }

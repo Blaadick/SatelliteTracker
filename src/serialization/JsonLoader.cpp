@@ -10,12 +10,12 @@ JsonLoader::JsonLoader(
 ) : satellites(satellites), stations(stations) {}
 
 void JsonLoader::loadSatellites() const {
-    if(!createDirIfNotExists(localDataDirPath())) {
-        std::println(stderr, "Failed to create directory \"{}\"", localDataDirPath());
+    if(!util::createDirIfNotExists(util::localDataDirPath())) {
+        std::println(stderr, "Failed to create directory \"{}\"", util::localDataDirPath());
         return;
     }
 
-    std::ifstream dataFile(localDataDirPath().append("satellites.json"));
+    std::ifstream dataFile(util::localDataDirPath().append("satellites.json"));
     nlohmann::json data = nlohmann::json::parse(dataFile);
 
     for(const auto& satelliteData : data) {
@@ -26,12 +26,12 @@ void JsonLoader::loadSatellites() const {
 }
 
 void JsonLoader::loadStations() const {
-    if(!createDirIfNotExists(localDataDirPath())) {
-        std::println(stderr, "Failed to create directory \"{}\"", localDataDirPath());
+    if(!util::createDirIfNotExists(util::localDataDirPath())) {
+        std::println(stderr, "Failed to create directory \"{}\"", util::localDataDirPath());
         return;
     }
 
-    std::ifstream dataFile(localDataDirPath().append("stations.json"));
+    std::ifstream dataFile(util::localDataDirPath().append("stations.json"));
     nlohmann::json data = nlohmann::json::parse(dataFile);
 
     for(const auto& stationData : data) {

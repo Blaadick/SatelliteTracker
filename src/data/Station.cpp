@@ -7,6 +7,14 @@ Station::Station(
     const std::map<std::string, std::vector<TimeRange>>& satellites
 ) : id(id), satellites(satellites) {}
 
+const std::string& Station::getId() const {
+    return id;
+}
+
+const std::map<std::string, std::vector<TimeRange>>& Station::getSatellites() const {
+    return satellites;
+}
+
 nlohmann::json Station::toJson() const {
     nlohmann::json output;
     output["id"] = id;

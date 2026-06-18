@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 4.3)
 
 project(SatelliteTracker
-    DESCRIPTION ""
+    DESCRIPTION "Satellite tracking time calculator"
     VERSION 0.0.1
     LANGUAGES CXX
 )
