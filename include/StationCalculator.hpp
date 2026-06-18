@@ -3,6 +3,7 @@
 #include <vector>
 #include "data/Satellite.hpp"
 #include "data/Station.hpp"
+#include "data/StationVisibility.hpp"
 
 class StationCalculator final {
 public:
@@ -17,4 +18,6 @@ public:
 private:
     const std::vector<Satellite>& satellites;
     const std::vector<Station>& stations;
+
+    std::vector<StationVisibility> generateVisibilities(const Station& station) const;
 };
