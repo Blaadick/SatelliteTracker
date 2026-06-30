@@ -3,6 +3,10 @@
 #include <format>
 #include "util/Time.hpp"
 
+std::chrono::seconds TimeRange::duration() const {
+    return end - start;
+}
+
 TimeRange TimeRange::fromJson(const nlohmann::json& data) {
     return TimeRange(util::parseTime(data["start"]), util::parseTime(data["end"]));
 }

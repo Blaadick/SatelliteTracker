@@ -17,10 +17,12 @@ int main() {
 
     for(const auto& station : stations) {
         const auto stationSteps = calculator.calculateStationSequence(station);
+        const auto stationCoverageRatio = calculator.calculateStationCoverageRatio(station);
 
         std::cout << "\n" + station.getId() + ":\n";
         for(const auto& [satelliteId, timeRange] : stationSteps) {
             std::println("    {}: {}", satelliteId, timeRange.toString());
         }
+        std::println("Coverage: {}%", stationCoverageRatio * 100);
     }
 }

@@ -13,11 +13,15 @@ public:
     );
 
     [[nodiscard]]
-    std::vector<std::pair<std::string, TimeRange>> calculateStationSequence(const Station& station) const;
+    std::vector<StationVisibility> calculateStationSequence(const Station& station) const;
+
+    [[nodiscard]]
+    float calculateStationCoverageRatio(const Station& station) const;
 
 private:
     const std::vector<Satellite>& satellites;
     const std::vector<Station>& stations;
 
+    [[nodiscard]]
     std::vector<StationVisibility> generateVisibilities(const Station& station) const;
 };

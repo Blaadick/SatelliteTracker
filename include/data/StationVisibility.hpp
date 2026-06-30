@@ -1,6 +1,6 @@
 #pragma once
-#include <string>
 
+#include <string>
 #include "data/TimeRange.hpp"
 
 struct StationVisibility {

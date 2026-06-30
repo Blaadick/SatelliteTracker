@@ -1,69 +1,101 @@
 #include "StationCalculator.hpp"
 
+#include <ranges>
+
 StationCalculator::StationCalculator(
     const std::vector<Satellite>& satellites,
     const std::vector<Station>& stations
 ) : satellites(satellites), stations(stations) {}
 
-std::vector<std::pair<std::string, TimeRange>> StationCalculator::calculateStationSequence(const Station& station) const {
-    std::vector<StationVisibility> all;
+std::vector<StationVisibility> StationCalculator::calculateStationSequence(const Station& station) const {
+    const auto visibilities = generateVisibilities(station);
 
-    for(const auto& [satId, ranges] : station.getSatellites()) {
-        for(const auto& r : ranges) {
-            all.push_back({satId, r});
-        }
-    }
-
-    if(all.empty()) {
+    if(visibilities.empty()) {
         return {};
     }
 
-    std::ranges::sort(
-        all,
-        [](const StationVisibility& a, const StationVisibility& b) {
-            return a.timeRange.start < b.timeRange.start;
-        }
+    struct Event {
+        std::chrono::seconds time;
+    };
+
+    std::vector<Event> events;
+    events.reserve(visibilities.size() * 2);
+
+    for(const auto& [satelliteId, timeRange] : visibilities) {
+        events.emplace_back(timeRange.start);
+        events.emplace_back(timeRange.end);
+    }
+
+    std::ranges::sort(events, {}, &Event::time);
+
+    events.erase(
+        std::ranges::unique(
+            events,
+            [](const auto& lhs, const auto& rhs) {
+                return lhs.time == rhs.time;
+            }
+        ).begin(),
+        events.end()
     );
 
-    std::vector<std::pair<std::string, TimeRange>> result;
+    auto satellitePriority = [this](const std::string_view id) {
+        const auto it = std::ranges::find(satellites, id, &Satellite::getId);
 
-    size_t i = 0;
+        return it == satellites.end() ? std::numeric_limits<int>::min() : it->getPriority();
+    };
 
-    while(i < all.size()) {
-        auto currentEnd = all[i].timeRange.end;
-        std::string currentSat = all[i].satelliteId;
+    std::vector<StationVisibility> result;
 
-        result.push_back({currentSat, all[i].timeRange});
+    for(std::size_t i = 0; i + 1 < events.size(); ++i) {
+        const auto interval = TimeRange(events[i].time, events[i + 1].time);
 
-        bool extended = true;
-        while(extended) {
-            extended = false;
+        if(interval.start == interval.end) {
+            continue;
+        }
 
-            std::chrono::seconds bestEnd = currentEnd;
-            StationVisibility best;
-            bool found = false;
+        const StationVisibility* best = nullptr;
 
-            for(const auto& it : all) {
-                if(it.timeRange.start <= currentEnd && it.timeRange.end > bestEnd) {
-                    best = it;
-                    bestEnd = it.timeRange.end;
-                    found = true;
-                }
+        for(const auto& visibility : visibilities) {
+            if(visibility.timeRange.start > interval.start)
+                continue;
+
+            if(visibility.timeRange.end < interval.end)
+                continue;
+
+            if(best == nullptr) {
+                best = &visibility;
+                continue;
             }
 
-            if(found) {
-                result.push_back({best.satelliteId, best.timeRange});
-                currentEnd = bestEnd;
-                extended = true;
+            const auto lhsPriority = satellitePriority(visibility.satelliteId);
+            const auto rhsPriority = satellitePriority(best->satelliteId);
+
+            if(lhsPriority > rhsPriority) {
+                best = &visibility;
+                continue;
+            }
+
+            if(lhsPriority == rhsPriority && visibility.timeRange.end > best->timeRange.end) {
+                best = &visibility;
             }
         }
 
-        while(i < all.size() && all[i].timeRange.start <= currentEnd) {
-            i++;
+        if(!best) {
+            continue;
+        }
+
+        if(!result.empty() && result.back().satelliteId == best->satelliteId && result.back().timeRange.end == interval.start) {
+            result.back().timeRange.end = interval.end;
+        } else {
+            result.emplace_back(best->satelliteId, interval);
         }
     }
 
     return result;
+}
+
+float StationCalculator::calculateStationCoverageRatio(const Station& station) const {
+    return 0;
 }
 
 std::vector<StationVisibility> StationCalculator::generateVisibilities(const Station& station) const {
