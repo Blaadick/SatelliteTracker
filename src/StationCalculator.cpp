@@ -1,6 +1,29 @@
 #include "StationCalculator.hpp"
 
-#include <ranges>
+#include <algorithm>
+#include <limits>
+#include <unordered_map>
+
+namespace {
+    std::unordered_map<std::string, int> buildPriorityBySatelliteId(const std::vector<Satellite>& satellites) {
+        std::unordered_map<std::string, int> priorityBySatelliteId;
+
+        for(const auto& satellite : satellites) {
+            priorityBySatelliteId.emplace(satellite.getId(), satellite.getPriority());
+        }
+
+        return priorityBySatelliteId;
+    }
+
+    int getSatellitePriority(const std::unordered_map<std::string, int>& priorityBySatelliteId, const std::string& satelliteId) {
+        const auto priority = priorityBySatelliteId.find(satelliteId);
+        return priority == priorityBySatelliteId.end() ? 0 : priority->second;
+    }
+
+    long long calculateVisibilityScore(const StationVisibility& visibility, const std::unordered_map<std::string, int>& priorityBySatelliteId) {
+        return visibility.timeRange.duration().count() * getSatellitePriority(priorityBySatelliteId, visibility.satelliteId);
+    }
+}
 
 StationCalculator::StationCalculator(
     const std::vector<Satellite>& satellites,
@@ -14,88 +37,85 @@ std::vector<StationVisibility> StationCalculator::calculateStationSequence(const
         return {};
     }
 
-    struct Event {
-        std::chrono::seconds time;
-    };
+    const auto priorityBySatelliteId = buildPriorityBySatelliteId(satellites);
 
-    std::vector<Event> events;
-    events.reserve(visibilities.size() * 2);
+    std::vector<std::chrono::seconds> timePoints;
+    timePoints.reserve(visibilities.size() * 2);
 
     for(const auto& [satelliteId, timeRange] : visibilities) {
-        events.emplace_back(timeRange.start);
-        events.emplace_back(timeRange.end);
-    }
-
-    std::ranges::sort(events, {}, &Event::time);
-
-    events.erase(
-        std::ranges::unique(
-            events,
-            [](const auto& lhs, const auto& rhs) {
-                return lhs.time == rhs.time;
-            }
-        ).begin(),
-        events.end()
-    );
-
-    auto satellitePriority = [this](const std::string_view id) {
-        const auto it = std::ranges::find(satellites, id, &Satellite::getId);
-
-        return it == satellites.end() ? std::numeric_limits<int>::min() : it->getPriority();
-    };
-
-    std::vector<StationVisibility> result;
-
-    for(std::size_t i = 0; i + 1 < events.size(); ++i) {
-        const auto interval = TimeRange(events[i].time, events[i + 1].time);
-
-        if(interval.start == interval.end) {
+        if(timeRange.end <= timeRange.start) {
             continue;
         }
 
-        const StationVisibility* best = nullptr;
+        timePoints.emplace_back(timeRange.start);
+        timePoints.emplace_back(timeRange.end);
+    }
+
+    std::ranges::sort(timePoints);
+    const auto [uniqueBegin, uniqueEnd] = std::ranges::unique(timePoints);
+    timePoints.erase(uniqueBegin, uniqueEnd);
+
+    std::vector<StationVisibility> sequence;
+
+    for(std::size_t index = 0; index + 1 < timePoints.size(); ++index) {
+        const auto segmentStart = timePoints[index];
+        const auto segmentEnd = timePoints[index + 1];
+
+        if(segmentEnd <= segmentStart) {
+            continue;
+        }
+
+        const StationVisibility* bestVisibility = nullptr;
+        auto bestScore = std::numeric_limits<long long>::min();
 
         for(const auto& visibility : visibilities) {
-            if(visibility.timeRange.start > interval.start)
-                continue;
-
-            if(visibility.timeRange.end < interval.end)
-                continue;
-
-            if(best == nullptr) {
-                best = &visibility;
+            if(visibility.timeRange.start > segmentStart || visibility.timeRange.end < segmentEnd) {
                 continue;
             }
 
-            const auto lhsPriority = satellitePriority(visibility.satelliteId);
-            const auto rhsPriority = satellitePriority(best->satelliteId);
+            const auto segmentScore = (segmentEnd - segmentStart).count() * getSatellitePriority(priorityBySatelliteId, visibility.satelliteId);
 
-            if(lhsPriority > rhsPriority) {
-                best = &visibility;
-                continue;
-            }
-
-            if(lhsPriority == rhsPriority && visibility.timeRange.end > best->timeRange.end) {
-                best = &visibility;
+            if(bestVisibility == nullptr || segmentScore > bestScore || (segmentScore == bestScore && visibility.satelliteId < bestVisibility->satelliteId)) {
+                bestVisibility = &visibility;
+                bestScore = segmentScore;
             }
         }
 
-        if(!best) {
+        if(bestVisibility == nullptr) {
             continue;
         }
 
-        if(!result.empty() && result.back().satelliteId == best->satelliteId && result.back().timeRange.end == interval.start) {
-            result.back().timeRange.end = interval.end;
-        } else {
-            result.emplace_back(best->satelliteId, interval);
+        if(!sequence.empty() && sequence.back().satelliteId == bestVisibility->satelliteId && sequence.back().timeRange.end == segmentStart) {
+            sequence.back().timeRange.end = segmentEnd;
+            continue;
         }
+
+        sequence.emplace_back(bestVisibility->satelliteId, TimeRange{segmentStart, segmentEnd});
     }
 
-    return result;
+    return sequence;
 }
 
 float StationCalculator::calculateStationCoverageRatio(const Station& station) const {
-    return 0;
+    const auto visibilities = generateVisibilities(station);
+    const auto sequence = calculateStationSequence(station);
+    const auto priorityBySatelliteId = buildPriorityBySatelliteId(satellites);
+
+    long long totalScore = 0;
+    for(const auto& visibility : visibilities) {
+        totalScore += calculateVisibilityScore(visibility, priorityBySatelliteId);
+    }
+
+    if(totalScore == 0) {
+        return 0;
+    }
+
+    long long selectedScore = 0;
+    for(const auto& visibility : sequence) {
+        selectedScore += calculateVisibilityScore(visibility, priorityBySatelliteId);
+    }
+
+    return static_cast<float>(selectedScore) / static_cast<float>(totalScore);
 }
 
 std::vector<StationVisibility> StationCalculator::generateVisibilities(const Station& station) const {
